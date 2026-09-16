@@ -342,15 +342,26 @@ function setupSignaturePad(canvasId){
   const canvas = document.getElementById(canvasId);
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
-  canvas.width = canvas.clientWidth*2; canvas.height = canvas.clientHeight*2;
-  ctx.scale(2,2); ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#20241F';
-  let drawing=false,last=null;
-  function pos(e){ const r=canvas.getBoundingClientRect(); const cx=e.touches?e.touches[0].clientX:e.clientX; const cy=e.touches?e.touches[0].clientY:e.clientY; return {x:cx-r.left,y:cy-r.top}; }
-  function start(e){ drawing=true; last=pos(e); e.preventDefault(); }
-  function move(e){ if(!drawing) return; const p=pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last=p; e.preventDefault(); }
-  function end(){ drawing=false; }
-  canvas.addEventListener('mousedown',start); canvas.addEventListener('mousemove',move); window.addEventListener('mouseup',end);
-  canvas.addEventListener('touchstart',start,{passive:false}); canvas.addEventListener('touchmove',move,{passive:false}); canvas.addEventListener('touchend',end);
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width));
+    const h = Math.max(1, Math.round(rect.height));
+    // Ne redimensionne (et donc n'efface) que si la taille a vraiment changé.
+    if(canvas.dataset.w == w && canvas.dataset.h == h) return;
+    canvas.dataset.w = w; canvas.dataset.h = h;
+    canvas.width = w*2; canvas.height = h*2;
+    ctx.scale(2,2); ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#101828';
+  }
+  resize();
+  requestAnimationFrame(resize); // filet de sécurité si la mise en page n'était pas encore stable
+  window.addEventListener('resize', resize);
+  canvas.style.touchAction = 'none';
+  let drawing=false, last=null;
+  function pos(e){ const r=canvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+  canvas.addEventListener('pointerdown', (e)=>{ drawing=true; last=pos(e); try{canvas.setPointerCapture(e.pointerId);}catch(err){} e.preventDefault(); });
+  canvas.addEventListener('pointermove', (e)=>{ if(!drawing) return; const p=pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last=p; e.preventDefault(); });
+  canvas.addEventListener('pointerup', ()=>{ drawing=false; });
+  canvas.addEventListener('pointercancel', ()=>{ drawing=false; });
 }
 function clearSignature(id){ const c=document.getElementById(id); c.getContext('2d').clearRect(0,0,c.width,c.height); }
 
@@ -474,7 +485,7 @@ function renderOrdreEditor(){
 function refreshOrdreEditor(){ const el=document.getElementById('ordre-editor'); if(el) el.innerHTML = renderOrdreEditor(); }
 function addOrdreLine(){ ordreDraft.lines.push({id:uid('orl'), description:'', type:'mo', quantite:1, fait:false}); refreshOrdreEditor(); }
 function removeOrdreLine(i){ ordreDraft.lines.splice(i,1); refreshOrdreEditor(); }
-function updateOrdreLine(i, field, val){ ordreDraft.lines[i][field] = val; refreshOrdreEditor(); }
+function updateOrdreLine(i, field, val){ ordreDraft.lines[i][field] = val; }
 async function saveOrdreEdit(depotId){
   const v = depots.find(x=>x.id===depotId); if(!v) return;
   v.ordreReparation = { items: ordreDraft.lines };
